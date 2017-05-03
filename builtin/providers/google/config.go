@@ -18,6 +18,7 @@ import (
 	"google.golang.org/api/cloudresourcemanager/v1"
 	"google.golang.org/api/compute/v1"
 	"google.golang.org/api/container/v1"
+	"google.golang.org/api/dataflow/v1b3"
 	"google.golang.org/api/dns/v1"
 	"google.golang.org/api/iam/v1"
 	"google.golang.org/api/pubsub/v1"
@@ -38,6 +39,7 @@ type Config struct {
 	clientContainer       *container.Service
 	clientDns             *dns.Service
 	clientPubsub          *pubsub.Service
+	clientDataflow        *dataflow.Service
 	clientResourceManager *cloudresourcemanager.Service
 	clientStorage         *storage.Service
 	clientSqlAdmin        *sqladmin.Service
@@ -142,6 +144,13 @@ func (c *Config) loadAndValidate() error {
 		return err
 	}
 	c.clientPubsub.UserAgent = userAgent
+
+	log.Printf("[INFO] Instantiating Google Dataflow Client...")
+	c.clientDataflow, err = dataflow.New(client)
+	if err != nil {
+		return err
+	}
+	c.clientDataflow.UserAgent = userAgent
 
 	log.Printf("[INFO] Instantiating Google Cloud ResourceManager Client...")
 	c.clientResourceManager, err = cloudresourcemanager.New(client)
