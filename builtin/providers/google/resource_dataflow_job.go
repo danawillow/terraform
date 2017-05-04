@@ -30,6 +30,19 @@ func resourceDataflowJob() *schema.Resource {
 				ForceNew: true,
 			},
 
+			"zone": &schema.Schema{
+				Type:     schema.TypeString,
+				Optional: true,
+				ForceNew: true,
+			},
+
+			"max_workers": &schema.Schema{
+				Type:     schema.TypeInt,
+				Optional: true,
+				Default:  1,
+				ForceNew: true,
+			},
+
 			"parameters": {
 				Type:     schema.TypeMap,
 				Optional: true,
@@ -40,6 +53,11 @@ func resourceDataflowJob() *schema.Resource {
 				Type:     schema.TypeString,
 				Optional: true,
 				ForceNew: true,
+			},
+
+			"state": &schema.Schema{
+				Type:     schema.TypeString,
+				Computed: true,
 			},
 		},
 	}
@@ -56,12 +74,16 @@ func resourceDataflowJobCreate(d *schema.ResourceData, meta interface{}) error {
 	jobName := d.Get("name").(string)
 	gcsPath := d.Get("gcs_path").(string)
 	tempLocation := d.Get("temp_location").(string)
+	zone := d.Get("zone").(string)
+	maxWorkers := d.Get("max_workers").(int)
 	params := expandStringMap(d.Get("parameters").(map[string]interface{}))
 
 	templateService := dataflow.NewProjectsTemplatesService(config.clientDataflow)
 
 	env := dataflow.RuntimeEnvironment{
 		TempLocation: tempLocation,
+		Zone:         zone,
+		MaxWorkers:   int64(maxWorkers),
 	}
 
 	request := dataflow.CreateJobFromTemplateRequest{
@@ -71,14 +93,13 @@ func resourceDataflowJobCreate(d *schema.ResourceData, meta interface{}) error {
 		Environment: &env,
 	}
 
-	call := templateService.Create(project, &request)
-
-	res, err := call.Do()
+	job, err := templateService.Create(project, &request).Do()
 	if err != nil {
 		return err
 	}
 
-	d.SetId(res.Id)
+	d.SetId(job.Id)
+	d.Set("state", job.CurrentState)
 
 	return nil
 }
@@ -93,11 +114,12 @@ func resourceDataflowJobRead(d *schema.ResourceData, meta interface{}) error {
 
 	id := d.Id()
 
-	call := config.clientDataflow.Projects.Jobs.Get(project, id)
-	_, err = call.Do()
+	job, err := config.clientDataflow.Projects.Jobs.Get(project, id).Do()
 	if err != nil {
 		return err
 	}
+
+	d.Set("state", job.CurrentState)
 
 	return nil
 }
