@@ -125,7 +125,24 @@ func resourceDataflowJobRead(d *schema.ResourceData, meta interface{}) error {
 }
 
 func resourceDataflowJobDelete(d *schema.ResourceData, meta interface{}) error {
-	// TODO: Implement job cancellation.
+	config := meta.(*Config)
+
+	project, err := getProject(d, config)
+	if err != nil {
+		return err
+	}
+
+	id := d.Id()
+
+	job := &dataflow.Job{
+		RequestedState: "JOB_STATE_CANCELLED",
+	}
+
+	_, err = config.clientDataflow.Projects.Jobs.Update(project, id, job).Do()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
