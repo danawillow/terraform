@@ -10,6 +10,8 @@ import (
 	"google.golang.org/api/compute/v1"
 )
 
+// With the outer block not computed and the inner block computed or with a default value, this fails
+// with a non-empty plan (it sets the value on read but tries to un-set it on plan)
 func TestAccComputeBackendService_basic(t *testing.T) {
 	serviceName := fmt.Sprintf("tf-test-%s", acctest.RandString(10))
 	checkName := fmt.Sprintf("tf-test-%s", acctest.RandString(10))
@@ -137,6 +139,47 @@ func TestAccComputeBackendService_withConnectionDraining(t *testing.T) {
 	if svc.ConnectionDraining.DrainingTimeoutSec != 10 {
 		t.Errorf("Expected ConnectionDraining.DrainingTimeoutSec == 10, got %d", svc.ConnectionDraining.DrainingTimeoutSec)
 	}
+}
+
+func TestAccComputeBackendService_updateConnectionDraining(t *testing.T) {
+	serviceName := fmt.Sprintf("tf-test-%s", acctest.RandString(10))
+	checkName := fmt.Sprintf("tf-test-%s", acctest.RandString(10))
+	var svc compute.BackendService
+
+	// Fails when outer block and inner element are computed
+	resource.Test(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		Providers:    testAccProviders,
+		CheckDestroy: testAccCheckComputeBackendServiceDestroy,
+		Steps: []resource.TestStep{
+			resource.TestStep{
+				Config: testAccComputeBackendService_withConnectionDraining(serviceName, checkName, 10),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckComputeBackendServiceExists(
+						"google_compute_backend_service.foobar", &svc),
+					resource.TestCheckResourceAttr(
+						"google_compute_backend_service.foobar", "connection_draining.0.draining_timeout_sec", "10"),
+				),
+			},
+			resource.TestStep{
+				// When the outer block is computed and the inner has a default, this fails on the CheckResourceAttr
+				// Otherwise, this and the commented-out config right after it fail on the ExpectNonEmptyPlan
+				Config: testAccComputeBackendService_basic(serviceName, checkName),
+				// Config:             testAccComputeBackendService_withConnectionDraining(serviceName, checkName, 0),
+				ExpectNonEmptyPlan: true,
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckComputeBackendServiceExists(
+						"google_compute_backend_service.foobar", &svc),
+					resource.TestCheckResourceAttr(
+						"google_compute_backend_service.foobar", "connection_draining.0.draining_timeout_sec", "0"),
+				),
+			},
+		},
+	})
+
+	// if svc.ConnectionDraining.DrainingTimeoutSec != 10 {
+	// 	t.Errorf("Expected ConnectionDraining.DrainingTimeoutSec == 10, got %d", svc.ConnectionDraining.DrainingTimeoutSec)
+	// }
 }
 
 func testAccCheckComputeBackendServiceDestroy(s *terraform.State) error {

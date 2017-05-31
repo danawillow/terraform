@@ -141,15 +141,16 @@ func resourceComputeBackendService() *schema.Resource {
 			},
 
 			"connection_draining": &schema.Schema{
-				Type:     schema.TypeSet,
+				Type:     schema.TypeList,
 				Optional: true,
 				MaxItems: 1,
+				Computed: true,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"draining_timeout_sec": &schema.Schema{
 							Type:     schema.TypeInt,
 							Optional: true,
-							Default:  0,
+							Computed: true,
 						},
 					},
 				},
@@ -201,7 +202,7 @@ func resourceComputeBackendServiceCreate(d *schema.ResourceData, meta interface{
 	}
 
 	if v, ok := d.GetOk("connection_draining"); ok {
-		service.ConnectionDraining = expandConnectionDraining(v.(*schema.Set).List())
+		service.ConnectionDraining = expandConnectionDraining(v.([]interface{}))
 	}
 
 	project, err := getProject(d, config)
@@ -257,8 +258,7 @@ func resourceComputeBackendServiceRead(d *schema.ResourceData, meta interface{})
 
 	d.Set("backend", flattenBackends(service.Backends))
 
-	_, ok := d.GetOk("connection_draining")
-	d.Set("connection_draining", flattenConnectionDraining(service.ConnectionDraining, ok))
+	d.Set("connection_draining", flattenConnectionDraining(service.ConnectionDraining))
 
 	d.Set("health_checks", service.HealthChecks)
 
@@ -303,7 +303,7 @@ func resourceComputeBackendServiceUpdate(d *schema.ResourceData, meta interface{
 	}
 
 	if v, ok := d.GetOk("connection_draining"); ok {
-		service.ConnectionDraining = expandConnectionDraining(v.(*schema.Set).List())
+		service.ConnectionDraining = expandConnectionDraining(v.([]interface{}))
 	} else if d.HasChange("connection_draining") {
 		// the draining_timeout_sec value has been modified manually but there is no entry in the .tf file
 		service.ConnectionDraining = &compute.ConnectionDraining{
@@ -425,11 +425,7 @@ func expandConnectionDraining(n []interface{}) *compute.ConnectionDraining {
 	return &connectionDraining
 }
 
-func flattenConnectionDraining(connectionDraining *compute.ConnectionDraining, blockInSchema bool) []map[string]interface{} {
-	if connectionDraining.DrainingTimeoutSec == 0 && !blockInSchema {
-		return make([]map[string]interface{}, 0, 0)
-	}
-
+func flattenConnectionDraining(connectionDraining *compute.ConnectionDraining) []map[string]interface{} {
 	result := make([]map[string]interface{}, 0, 1)
 	data := make(map[string]interface{})
 	data["draining_timeout_sec"] = connectionDraining.DrainingTimeoutSec
